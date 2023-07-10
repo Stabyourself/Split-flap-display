@@ -72,24 +72,28 @@ void setup() {
   calibrate(); //going to zero point
 }
 
-//loop
 void loop() {
   //check if new bytes via I2C available for convert
   if(readBytesFinished) {
     //convert to utf string
     String utfLetter;
+
     //go through the bytes and get the utf letter
     for(int i = 0; i < amountBytesI2C; i++) {
       int charLength = 2; //at least two bytes including null termination
+
       if(bitRead(byteBufferI2C[i],7)&&bitRead(byteBufferI2C[i],6)) { //if true, utf char consists of at least two bytes + null termination
         charLength++;
         if(bitRead(byteBufferI2C[i],5)) charLength++; //if true, utf char consists of at least three bytes + null termination
         if(bitRead(byteBufferI2C[i],4)) charLength++; //if true, utf char consists of four bytes + null termination
       }
+
       byte aBuffer[charLength];
+
       for(int j = 0; j < charLength; j++) {
         aBuffer[j] = byteBufferI2C[i+j];
       }
+
       utfLetter = String((char*)aBuffer);
       i = i + (charLength-1); //skip bytes corresponding to length of utf letter
     }
@@ -104,29 +108,9 @@ void loop() {
     byteBufferI2C[3] = 0;
     Serial.println("1 out");
   }
-  //temp for test calibration settings
-  /*
-  String calLetters[10] = {" ","Z","A","U","N","!","0","1","2","9"};
-  for(int i = 0; i < 10; i++) {
-    String currentCalLetter = calLetters[i];
-    rotateToLetter(currentCalLetter);
-    Serial.print("Current motor temperature:");
-    Serial.print(getTemperature());
-    Serial.println(" °C");
-    delay(5000);
-  }
-  */
-  //end temp
 
   //check for overheated motor
-  if(getTemperature() < CRITICALTEMPERATURE) {
-    //temperature ok
-    stepperOverheated = false;
-    //check if currently displayed letter differs from desired letter
-    if(displayedLetter!=desiredLetter) rotateToLetter(desiredLetter);
-    delay(100);
-  }
-  else {
+  if(getTemperature() > CRITICALTEMPERATURE) {
     //overheating alarm
     stopMotor();
     stepperOverheated = true;
@@ -134,6 +118,12 @@ void loop() {
     Serial.print(getTemperature());
     Serial.println(" °C. turn off motor.");
     delay(10000);
+  } else {
+    //temperature ok
+    stepperOverheated = false;
+    //check if currently displayed letter differs from desired letter
+    if(displayedLetter!=desiredLetter) rotateToLetter(desiredLetter);
+    delay(100);
   }
 }
 
@@ -145,16 +135,15 @@ int calibrate() {
   int i = 0;
   while(!reachedMarker) {
     int currentHallValue = digitalRead(HALLPIN);
+
     if(currentHallValue == 0 && i == 0) { //already in zero position move out a bit and do the calibration {
       //not reached yet
       i = 50;
       stepper.step(ROTATIONDIRECTION * 50); //move 50 steps to get out of scope of hall
-      }
-    else if(currentHallValue == 1) {
+    } else if(currentHallValue == 1) {
       //not reached yet
       stepper.step(ROTATIONDIRECTION * 1);
-    }
-    else {
+    } else {
       //reached marker, go to calibrated offset position
       reachedMarker = true;
       stepper.step(ROTATIONDIRECTION * CALOFFSET);
@@ -163,6 +152,7 @@ int calibrate() {
       stopMotor();
       return i;
     }
+
     if(i > 3 * STEPS) {
       //seems that there is a problem with the marker or the sensor. turn of the motor to avoid overheating.
       displayedLetter = " ";
@@ -171,8 +161,10 @@ int calibrate() {
       Serial.println("calibration revolver failed");
       return -1;
     }
+
     i++;
   }
+
   return i;
 }
 
@@ -184,14 +176,17 @@ void rotateToLetter(String toLetter) {
     int posLetter = -1;
     int posCurrentLetter = -1;
     int amountLetters = sizeof(letters) / sizeof(String);
+
     for(int i = 0; i < amountLetters; i++) {
       //current char
       String currentSearchLetter = letters[i];
       if(toLetter == currentSearchLetter) posLetter = i;
       if(displayedLetter == currentSearchLetter) posCurrentLetter = i;
     }
+
     Serial.print("go to letter:");
     Serial.println(toLetter);
+
     //go to letter, but only if available (>-1)
     if(posLetter > -1) { //check if letter exists
       //check if letter is on higher index, then no full rotaion is needed
@@ -212,8 +207,7 @@ void rotateToLetter(String toLetter) {
           }
           stepper.step(ROTATIONDIRECTION*roundedStep);
         }
-      }
-      else {
+      } else {
         //full rotation is needed, good time for a calibration
         Serial.println("full rotation incl. calibration");
         calibrate();
@@ -230,13 +224,13 @@ void rotateToLetter(String toLetter) {
           stepper.step(ROTATIONDIRECTION*roundedStep);
         }
       }
+
       //store new position
       displayedLetter = toLetter;
       //rotation is done, stop the motor
       delay(100); //important to stop rotation before shutting of the motor to avoid rotation after switching off current
       stopMotor();
-    }
-    else {
+    } else {
       Serial.println("letter unknown, go to space");
       desiredLetter = " ";
     }
@@ -275,7 +269,7 @@ void startMotor() {
 void receiveLetter(int amount) {
   amountBytesI2C = amount;
   int i = 0;
-  while(Wire.available()){
+  while(Wire.available()) {
     byteBufferI2C[i] = Wire.read();
     Serial.println(byteBufferI2C[i]);
     i++;
@@ -287,8 +281,7 @@ void requestEvent(void) {
   if(stepperOverheated) {
     Wire.write("O"); //sending tag o to master for overheating
     Serial.println("send O");
-  }
-  else {
+  } else {
     Wire.write("P"); //sending tag p to master for ping/alive
     Serial.println("send P");
   }
