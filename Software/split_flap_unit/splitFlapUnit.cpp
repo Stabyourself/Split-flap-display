@@ -25,7 +25,7 @@
 //thermistor
 #define THERMISTORPIN A0
 float thermistorB = 3950;
-#define CRITICALTEMPERATURE 50 
+#define CRITICALTEMPERATURE 50
 bool stepperOverheated = false;
 //constants others
 #define BAUDRATE 9600
@@ -36,7 +36,7 @@ unsigned long lastRotation = 0;
 //globals
 String displayedLetter = " ";
 String desiredLetter = " ";
-const String letters[] = {" ","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","Ä","Ö","Ü","0","1","2","3","4","5","6","7","8","9",":",".","-","?","!"};
+const String letters[] = {" ","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","0","1","2","3","4","5","6","7","8","9",".",":", ",", "\"", "!", "?", "-", "="};
 Stepper stepper(STEPS, STEPPERPIN1,STEPPERPIN3,STEPPERPIN2,STEPPERPIN4); //stepper setup
 bool lastInd1 = false; //store last status of phase
 bool lastInd2 = false; //store last status of phase
@@ -63,8 +63,8 @@ void setup() {
 
   //initialize i2c
   Serial.println("starting i2c slave");
-  Wire.begin(i2cAddress); //i2c address of this unit 
-  Wire.onReceive(receiveLetter); //call-function if for transfered letter via i2c 
+  Wire.begin(i2cAddress); //i2c address of this unit
+  Wire.onReceive(receiveLetter); //call-function if for transfered letter via i2c
   Wire.onRequest(requestEvent);
 
   //setup motor
@@ -126,7 +126,7 @@ void loop() {
   if(getTemperature() < CRITICALTEMPERATURE) {
     //temperature ok
     stepperOverheated = false;
-    //check if currently displayed letter differs from desired letter  
+    //check if currently displayed letter differs from desired letter
     if(displayedLetter!=desiredLetter) rotateToLetter(desiredLetter);
     delay(100);
   }
@@ -262,7 +262,7 @@ void stopMotor() {
   lastInd2 = digitalRead(STEPPERPIN2);
   lastInd3 = digitalRead(STEPPERPIN3);
   lastInd4 = digitalRead(STEPPERPIN4);
-  
+
   digitalWrite(STEPPERPIN1,LOW);
   digitalWrite(STEPPERPIN2,LOW);
   digitalWrite(STEPPERPIN3,LOW);
