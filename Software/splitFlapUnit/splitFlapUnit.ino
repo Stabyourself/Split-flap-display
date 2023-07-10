@@ -116,7 +116,6 @@ void loop()
     byteBufferI2C[1] = 0;
     byteBufferI2C[2] = 0;
     byteBufferI2C[3] = 0;
-    Serial.println("1 out");
   }
 
   // check for overheated motor
@@ -218,7 +217,8 @@ void rotateToLetter(String toLetter)
 
     // go to letter, but only if available (>-1)
     if (posLetter > -1)
-    { // check if letter exists
+    {
+      // check if letter exists
       // check if letter is on higher index, then no full rotaion is needed
       if (posLetter >= posCurrentLetter)
       {
@@ -281,7 +281,6 @@ float getTemperature()
 {
   float thermistorReading = analogRead(THERMISTORPIN);
   float thermistorResistance = 100000 / ((1023 / thermistorReading) - 1);
-  // Serial.println(thermistorResistance);
   float thermistorTemperature = (1 / ((log(thermistorResistance / 100000.0) / thermistorB) + 1 / (273.15 + 25.0))) - 273.15;
   return thermistorTemperature;
 }
