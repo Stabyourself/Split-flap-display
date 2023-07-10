@@ -17,11 +17,11 @@
 #define STEPPERPIN2 9
 #define STEPPERPIN3 10
 #define STEPPERPIN4 11
-#define STEPS 2038   // 28BYJ-48, number of steps;
-#define CALOFFSET 10 // needs to be calibrated for each unit
+#define STEPS 2038    // 28BYJ-48, number of steps;
+#define CALOFFSET 560 // needs to be calibrated for each unit
 #define HALLPIN 5
 #define AMOUNTFLAPS 45
-#define STEPPERSPEED 15 // in rpm
+#define STEPPERSPEED 20 // in rpm. 20 is about the maximum speed for the stepper
 
 // thermistor
 #define THERMISTORPIN A0
@@ -172,6 +172,9 @@ int calibrate()
       displayedLetter = " ";
       missedSteps = 0;
       stopMotor();
+
+      Serial.println("success");
+      Serial.println("Temp: " + String(getTemperature()) + " °C");
       return i;
     }
 
@@ -181,6 +184,7 @@ int calibrate()
       displayedLetter = " ";
       desiredLetter = " ";
       reachedMarker = true;
+
       Serial.println("calibration revolver failed");
       return -1;
     }
@@ -325,11 +329,11 @@ void requestEvent(void)
   if (stepperOverheated)
   {
     Wire.write("O"); // sending tag o to master for overheating
-    Serial.println("send O");
+    Serial.println("sent O");
   }
   else
   {
     Wire.write("P"); // sending tag p to master for ping/alive
-    Serial.println("send P");
+    Serial.println("sent P");
   }
 }
