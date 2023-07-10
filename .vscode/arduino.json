@@ -1,5 +1,6 @@
 {
-    "configuration": "cpu=atmega328",
+    "configuration": "cpu=atmega328old",
     "board": "arduino:avr:nano",
-    "sketch": "Software\\splitFlapUnit\\splitFlapUnit.ino"
+    "sketch": "Software\\splitFlapUnit\\splitFlapUnit.ino",
+    "port": "COM8"
 }
