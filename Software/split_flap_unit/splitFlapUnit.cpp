@@ -93,10 +93,6 @@ void loop() {
       utfLetter = String((char*)aBuffer);
       i = i + (charLength-1); //skip bytes corresponding to length of utf letter
     }
-    //convert small 'umlaute' to capital
-    if(utfLetter == "ä") utfLetter = "Ä";
-    if(utfLetter == "ö") utfLetter = "Ö";
-    if(utfLetter == "ü") utfLetter = "Ü";
     desiredLetter = utfLetter;
 
     //reset values
