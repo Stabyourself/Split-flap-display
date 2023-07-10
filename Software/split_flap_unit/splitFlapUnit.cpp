@@ -130,7 +130,7 @@ void loop() {
     //overheating alarm
     stopMotor();
     stepperOverheated = true;
-    Serial.print("ciritcal temperature reached. current temperature:");
+    Serial.print("critical temperature reached. current temperature:");
     Serial.print(getTemperature());
     Serial.println(" °C. turn off motor.");
     delay(10000);
@@ -145,7 +145,7 @@ int calibrate() {
   int i = 0;
   while(!reachedMarker) {
     int currentHallValue = digitalRead(HALLPIN);
-    if(currentHallValue == 1 && i == 0) { //already in zero position move out a bit and do the calibration {
+    if(currentHallValue == 0 && i == 0) { //already in zero position move out a bit and do the calibration {
       //not reached yet
       i = 50;
       stepper.step(ROTATIONDIRECTION * 50); //move 50 steps to get out of scope of hall
