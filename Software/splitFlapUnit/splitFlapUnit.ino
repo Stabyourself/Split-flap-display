@@ -10,7 +10,7 @@
 #include <Stepper.h>
 
 // constants i2c
-#define i2cAddress 8 // i2c address
+#define i2cAddress 1 // i2c address
 
 // constants stepper
 #define STEPPERPIN1 8
@@ -18,15 +18,15 @@
 #define STEPPERPIN3 10
 #define STEPPERPIN4 11
 #define STEPS 2038    // 28BYJ-48, number of steps;
-#define CALOFFSET 560 // needs to be calibrated for each unit
+#define CALOFFSET 555 // needs to be calibrated for each unit
 #define HALLPIN 5
 #define AMOUNTFLAPS 45
-#define STEPPERSPEED 20 // in rpm. 20 is about the maximum speed for the stepper
+#define STEPPERSPEED 15 // in rpm. 15 is about the maximum speed for the stepper to still be accurate
 
 // thermistor
 #define THERMISTORPIN A0
 float thermistorB = 3950;
-#define CRITICALTEMPERATURE 50
+#define CRITICALTEMPERATURE 5000
 bool stepperOverheated = false;
 
 // constants others
@@ -48,15 +48,6 @@ float missedSteps = 0;                                                      // c
 byte byteBufferI2C[4];                                                      // buffer for I2C read. Should be max. 4 bytes (three bytes for unicode and one for stop byte)
 int amountBytesI2C = 0;                                                     // amount of bytes to conevert
 bool readBytesFinished = false;                                             // if set to true, bytes will be converted to unicode letter inside loop
-
-// function decleration
-int calibrate();
-void rotateToLetter(String toLetter);
-float getTemperature();
-void stopMotor();
-void startMotor();
-void receiveLetter(int amount);
-void requestEvent(void);
 
 // setup
 void setup()
@@ -118,6 +109,12 @@ void loop()
     byteBufferI2C[3] = 0;
   }
 
+  if (Serial.available() > 0)
+  {
+    String input = Serial.readString();
+    desiredLetter = input.charAt(0);
+  }
+
   // check for overheated motor
   if (getTemperature() > CRITICALTEMPERATURE)
   {
@@ -137,7 +134,10 @@ void loop()
     stepperOverheated = false;
     // check if currently displayed letter differs from desired letter
     if (displayedLetter != desiredLetter)
+    {
       rotateToLetter(desiredLetter);
+    }
+
     delay(100);
   }
 }
@@ -145,6 +145,7 @@ void loop()
 // doing a calibration of the revolver using the hall sensor
 int calibrate()
 {
+  Serial.println("Temp: " + String(getTemperature()) + " °C");
   Serial.println("calibrate revolver");
   bool reachedMarker = false;
   stepper.setSpeed(STEPPERSPEED);
@@ -174,7 +175,6 @@ int calibrate()
       stopMotor();
 
       Serial.println("success");
-      Serial.println("Temp: " + String(getTemperature()) + " °C");
       return i;
     }
 
