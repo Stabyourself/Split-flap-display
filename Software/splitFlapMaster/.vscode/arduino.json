@@ -1,6 +1,6 @@
 {
-  "configuration": "cpu=atmega328old",
-  "board": "arduino:avr:nano",
-  "sketch": "splitFlapMaster.ino",
-  "port": "COM8"
+    "configuration": "cpu=atmega328old",
+    "board": "arduino:avr:nano",
+    "sketch": "splitFlapMaster.ino",
+    "port": "COM10"
 }

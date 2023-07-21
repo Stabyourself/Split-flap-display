@@ -11,10 +11,11 @@
 #include <WiFiEspUdp.h>
 #include <SoftwareSerial.h> // to talk to esp8266 via uart
 
+#define BAUDRATE 115200 // baudrate for serial communication
+
 // Settings for connected units
-const int displayUnits[] = {1, 2}; // array of i2c addresses; Index 0 will get first letter, index 1 the second,...
-#define DISTRIBUTEUNITDELAY 500    // delay between units for letter transmission in ms.
-#define BAUDRATE 115200            // baudrate for serial communication
+const int displayUnits[] = {1, 2, 3, 4}; // array of i2c addresses; Index 0 will get first letter, index 1 the second,...
+#define DISTRIBUTEUNITDELAY 0            // delay between units for letter transmission in ms.
 
 // WIFI
 SoftwareSerial Serial1(3, 2); // UART to ESP8266
@@ -151,10 +152,6 @@ void distributeMessageToUnits(String message)
         }
         Wire.endTransmission();
 
-        // ask for unit for response (p, nil or o)
-        getStatusOfUnit(displayUnits[i]);
-        delay(DISTRIBUTEUNITDELAY);
-
         lastParseIndex = j + charLength;
         break;
       }
@@ -166,52 +163,8 @@ void distributeMessageToUnits(String message)
       Wire.write((byte)32);
       Wire.write((byte)0);
       Wire.endTransmission();
-      // ask for unit for response (p, nil or o)
-      getStatusOfUnit(displayUnits[i]);
     }
+
+    delay(DISTRIBUTEUNITDELAY);
   }
-}
-
-void getStatusOfUnit(int adress)
-{
-  // check for acknowledge and overheating of unit
-  int answerBytes = Wire.requestFrom(adress, 1);
-  int readIndex = 0;
-  char unitAnswer[1];
-  bool receivedAnswer = false;
-
-  while (Wire.available())
-  {
-    unitAnswer[readIndex] = Wire.read();
-    readIndex++;
-    receivedAnswer = true;
-  }
-
-  // check answer
-  if (unitAnswer[0] == 'P' && receivedAnswer)
-    ; // received alive signal, nothing to do
-  else if (unitAnswer[0] == 'O' && receivedAnswer)
-    overheatingAlarm(adress); // an overheating was detected
-  else if (receivedAnswer)
-    receiveFailure(adress); // answer but weather p or o
-  else if (answerBytes != 1)
-    receiveFailure(adress); // no response
-}
-
-void overheatingAlarm(int adress)
-{
-  // an overheating was detected
-  Serial.print("Unit ");
-  Serial.print(adress);
-  Serial.println(" sent an overheating alarm.");
-  // put in some code to handle overheating, e.g. shutdown of display
-}
-
-void receiveFailure(int adress)
-{
-  // unit didn't answer correctly
-  Serial.print("Unit ");
-  Serial.print(adress);
-  Serial.println(" didn't send a P.");
-  // put in some code to handle missing ACK
 }
