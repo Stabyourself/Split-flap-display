@@ -10,7 +10,7 @@
 #include <Stepper.h>
 
 // constants i2c
-#define i2cAddress 1 // i2c address
+#define i2cAddress 4 // i2c address
 
 // constants stepper
 #define STEPPERPIN1 8
@@ -23,16 +23,9 @@
 #define AMOUNTFLAPS 45
 #define STEPPERSPEED 15 // in rpm. 15 is about the maximum speed for the stepper to still be accurate
 
-// thermistor
-#define THERMISTORPIN A0
-float thermistorB = 3950;
-#define CRITICALTEMPERATURE 5000
-bool stepperOverheated = false;
-
 // constants others
-#define BAUDRATE 9600
-#define ROTATIONDIRECTION 1  //-1 for reverse direction
-#define OVERHEATINGTIMEOUT 2 // timeout in seconds to avoid overheating of stepper. After starting rotation, the counter will start. Stepper won't move again until timeout is passed
+#define BAUDRATE 115200
+#define ROTATIONDIRECTION 1 //-1 for reverse direction
 unsigned long lastRotation = 0;
 
 // globals
@@ -59,7 +52,6 @@ void setup()
   Serial.println("starting i2c slave");
   Wire.begin(i2cAddress);        // i2c address of this unit
   Wire.onReceive(receiveLetter); // call-function if for transfered letter via i2c
-  Wire.onRequest(requestEvent);
 
   // setup motor
   pinMode(HALLPIN, INPUT);
@@ -115,37 +107,18 @@ void loop()
     desiredLetter = input.charAt(0);
   }
 
-  // check for overheated motor
-  if (getTemperature() > CRITICALTEMPERATURE)
+  // check if currently displayed letter differs from desired letter
+  if (displayedLetter != desiredLetter)
   {
-    // overheating alarm
-    stopMotor();
-
-    stepperOverheated = true;
-    Serial.print("critical temperature reached. current temperature:");
-    Serial.print(getTemperature());
-    Serial.println(" °C. turn off motor.");
-
-    delay(10000);
+    rotateToLetter(desiredLetter);
   }
-  else
-  {
-    // temperature ok
-    stepperOverheated = false;
-    // check if currently displayed letter differs from desired letter
-    if (displayedLetter != desiredLetter)
-    {
-      rotateToLetter(desiredLetter);
-    }
 
-    delay(100);
-  }
+  delay(100);
 }
 
 // doing a calibration of the revolver using the hall sensor
 int calibrate()
 {
-  Serial.println("Temp: " + String(getTemperature()) + " °C");
   Serial.println("calibrate revolver");
   bool reachedMarker = false;
   stepper.setSpeed(STEPPERSPEED);
@@ -198,95 +171,83 @@ int calibrate()
 // rotate to desired letter
 void rotateToLetter(String toLetter)
 {
-  if (lastRotation == 0 || (millis() - lastRotation > OVERHEATINGTIMEOUT * 1000))
+  lastRotation = millis();
+  // get letter position
+  int posLetter = -1;
+  int posCurrentLetter = -1;
+  int amountLetters = sizeof(letters) / sizeof(String);
+
+  for (int i = 0; i < amountLetters; i++)
   {
-    lastRotation = millis();
-    // get letter position
-    int posLetter = -1;
-    int posCurrentLetter = -1;
-    int amountLetters = sizeof(letters) / sizeof(String);
+    // current char
+    String currentSearchLetter = letters[i];
+    if (toLetter == currentSearchLetter)
+      posLetter = i;
+    if (displayedLetter == currentSearchLetter)
+      posCurrentLetter = i;
+  }
 
-    for (int i = 0; i < amountLetters; i++)
+  Serial.print("go to letter:");
+  Serial.println(toLetter);
+
+  // go to letter, but only if available (>-1)
+  if (posLetter > -1)
+  {
+    // check if letter exists
+    // check if letter is on higher index, then no full rotaion is needed
+    if (posLetter >= posCurrentLetter)
     {
-      // current char
-      String currentSearchLetter = letters[i];
-      if (toLetter == currentSearchLetter)
-        posLetter = i;
-      if (displayedLetter == currentSearchLetter)
-        posCurrentLetter = i;
-    }
-
-    Serial.print("go to letter:");
-    Serial.println(toLetter);
-
-    // go to letter, but only if available (>-1)
-    if (posLetter > -1)
-    {
-      // check if letter exists
-      // check if letter is on higher index, then no full rotaion is needed
-      if (posLetter >= posCurrentLetter)
+      Serial.println("direct");
+      // go directly to next letter, get steps from current letter to target letter
+      int diffPosition = posLetter - posCurrentLetter;
+      startMotor();
+      stepper.setSpeed(STEPPERSPEED);
+      // doing the rotation letterwise
+      for (int i = 0; i < diffPosition; i++)
       {
-        Serial.println("direct");
-        // go directly to next letter, get steps from current letter to target letter
-        int diffPosition = posLetter - posCurrentLetter;
-        startMotor();
-        stepper.setSpeed(STEPPERSPEED);
-        // doing the rotation letterwise
-        for (int i = 0; i < diffPosition; i++)
+        float preciseStep = (float)STEPS / (float)AMOUNTFLAPS;
+        int roundedStep = (int)preciseStep;
+        missedSteps = missedSteps + ((float)preciseStep - (float)roundedStep);
+        if (missedSteps > 1)
         {
-          float preciseStep = (float)STEPS / (float)AMOUNTFLAPS;
-          int roundedStep = (int)preciseStep;
-          missedSteps = missedSteps + ((float)preciseStep - (float)roundedStep);
-          if (missedSteps > 1)
-          {
-            roundedStep = roundedStep + 1;
-            missedSteps--;
-          }
-          stepper.step(ROTATIONDIRECTION * roundedStep);
+          roundedStep = roundedStep + 1;
+          missedSteps--;
         }
+        stepper.step(ROTATIONDIRECTION * roundedStep);
       }
-      else
-      {
-        // full rotation is needed, good time for a calibration
-        Serial.println("full rotation incl. calibration");
-        calibrate();
-        startMotor();
-        stepper.setSpeed(STEPPERSPEED);
-        for (int i = 0; i < posLetter; i++)
-        {
-          float preciseStep = (float)STEPS / (float)AMOUNTFLAPS;
-          int roundedStep = (int)preciseStep;
-          missedSteps = missedSteps + (float)preciseStep - (float)roundedStep;
-          if (missedSteps > 1)
-          {
-            roundedStep = roundedStep + 1;
-            missedSteps--;
-          }
-          stepper.step(ROTATIONDIRECTION * roundedStep);
-        }
-      }
-
-      // store new position
-      displayedLetter = toLetter;
-      // rotation is done, stop the motor
-      delay(100); // important to stop rotation before shutting of the motor to avoid rotation after switching off current
-      stopMotor();
     }
     else
     {
-      Serial.println("letter unknown, go to space");
-      desiredLetter = " ";
+      // full rotation is needed, good time for a calibration
+      Serial.println("full rotation incl. calibration");
+      calibrate();
+      startMotor();
+      stepper.setSpeed(STEPPERSPEED);
+      for (int i = 0; i < posLetter; i++)
+      {
+        float preciseStep = (float)STEPS / (float)AMOUNTFLAPS;
+        int roundedStep = (int)preciseStep;
+        missedSteps = missedSteps + (float)preciseStep - (float)roundedStep;
+        if (missedSteps > 1)
+        {
+          roundedStep = roundedStep + 1;
+          missedSteps--;
+        }
+        stepper.step(ROTATIONDIRECTION * roundedStep);
+      }
     }
-  }
-}
 
-// temperature of motor
-float getTemperature()
-{
-  float thermistorReading = analogRead(THERMISTORPIN);
-  float thermistorResistance = 100000 / ((1023 / thermistorReading) - 1);
-  float thermistorTemperature = (1 / ((log(thermistorResistance / 100000.0) / thermistorB) + 1 / (273.15 + 25.0))) - 273.15;
-  return thermistorTemperature;
+    // store new position
+    displayedLetter = toLetter;
+    // rotation is done, stop the motor
+    delay(100); // important to stop rotation before shutting of the motor to avoid rotation after switching off current
+    stopMotor();
+  }
+  else
+  {
+    Serial.println("letter unknown, go to space");
+    desiredLetter = " ";
+  }
 }
 
 // switching off the motor driver
@@ -322,18 +283,4 @@ void receiveLetter(int amount)
     i++;
   }
   readBytesFinished = true;
-}
-
-void requestEvent(void)
-{
-  if (stepperOverheated)
-  {
-    Wire.write("O"); // sending tag o to master for overheating
-    Serial.println("sent O");
-  }
-  else
-  {
-    Wire.write("P"); // sending tag p to master for ping/alive
-    Serial.println("sent P");
-  }
 }
