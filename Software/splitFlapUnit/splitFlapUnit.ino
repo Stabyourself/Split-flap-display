@@ -1,4 +1,4 @@
-// (c) Walter Greger, internet.greger@me.com
+// based on code by Walter Greger
 
 //***************************
 // code for split flap unit //
@@ -10,37 +10,35 @@
 #include <Stepper.h>
 
 // constants i2c
-#define i2cAddress 4 // i2c address
+#define i2cAddress 1 // i2c address
 
 // constants stepper
 #define STEPPERPIN1 8
 #define STEPPERPIN2 9
 #define STEPPERPIN3 10
 #define STEPPERPIN4 11
-#define STEPS 2038    // 28BYJ-48, number of steps;
-#define CALOFFSET 555 // needs to be calibrated for each unit
+#define STEPS 2038 // 28BYJ-48, number of steps;
+int calOffset = 0; // master sends these now
 #define HALLPIN 5
-#define AMOUNTFLAPS 45
 #define STEPPERSPEED 15 // in rpm. 15 is about the maximum speed for the stepper to still be accurate
 
 // constants others
 #define BAUDRATE 115200
 #define ROTATIONDIRECTION 1 //-1 for reverse direction
-unsigned long lastRotation = 0;
 
 // globals
-String displayedLetter = " ";
-String desiredLetter = " ";
-const String letters[] = {" ", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", ":", ",", "\"", "!", "?", "-", "="};
+bool newCalOffset = false;
+bool calibrationSuccess = false;
+char displayedLetter = ' ';
+char desiredLetter = ' ';
+int currentStep = 0;
+const char letters[] = {' ', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ':', ',', '"', '!', '?', '-', '='};
 Stepper stepper(STEPS, STEPPERPIN1, STEPPERPIN3, STEPPERPIN2, STEPPERPIN4); // stepper setup
 bool lastInd1 = false;                                                      // store last status of phase
 bool lastInd2 = false;                                                      // store last status of phase
 bool lastInd3 = false;                                                      // store last status of phase
 bool lastInd4 = false;                                                      // store last status of phase
-float missedSteps = 0;                                                      // cummulate steps <1, to compensate via additional step when reaching >1
-byte byteBufferI2C[4];                                                      // buffer for I2C read. Should be max. 4 bytes (three bytes for unicode and one for stop byte)
-int amountBytesI2C = 0;                                                     // amount of bytes to conevert
-bool readBytesFinished = false;                                             // if set to true, bytes will be converted to unicode letter inside loop
+byte byteBufferI2C[4];                                                      // buffer for I2C read
 
 // setup
 void setup()
@@ -50,57 +48,16 @@ void setup()
 
   // initialize i2c
   Serial.println("starting i2c slave");
-  Wire.begin(i2cAddress);        // i2c address of this unit
-  Wire.onReceive(receiveLetter); // call-function if for transfered letter via i2c
+  Wire.begin(i2cAddress);      // i2c address of this unit
+  Wire.onReceive(receiveData); // call-function if for transfered letter via i2c
 
   // setup motor
   pinMode(HALLPIN, INPUT);
-  calibrate(); // going to zero point
+  stepper.setSpeed(STEPPERSPEED);
 }
 
 void loop()
 {
-  // check if new bytes via I2C available for convert
-  if (readBytesFinished)
-  {
-    // convert to utf string
-    String utfLetter;
-
-    // go through the bytes and get the utf letter
-    for (int i = 0; i < amountBytesI2C; i++)
-    {
-      int charLength = 2; // at least two bytes including null termination
-
-      if (bitRead(byteBufferI2C[i], 7) && bitRead(byteBufferI2C[i], 6))
-      { // if true, utf char consists of at least two bytes + null termination
-        charLength++;
-        if (bitRead(byteBufferI2C[i], 5))
-          charLength++; // if true, utf char consists of at least three bytes + null termination
-        if (bitRead(byteBufferI2C[i], 4))
-          charLength++; // if true, utf char consists of four bytes + null termination
-      }
-
-      byte aBuffer[charLength];
-
-      for (int j = 0; j < charLength; j++)
-      {
-        aBuffer[j] = byteBufferI2C[i + j];
-      }
-
-      utfLetter = String((char *)aBuffer);
-      i = i + (charLength - 1); // skip bytes corresponding to length of utf letter
-    }
-    desiredLetter = utfLetter;
-
-    // reset values
-    readBytesFinished = false;
-    amountBytesI2C = 0;
-    byteBufferI2C[0] = 0;
-    byteBufferI2C[1] = 0;
-    byteBufferI2C[2] = 0;
-    byteBufferI2C[3] = 0;
-  }
-
   if (Serial.available() > 0)
   {
     String input = Serial.readString();
@@ -108,30 +65,38 @@ void loop()
   }
 
   // check if currently displayed letter differs from desired letter
-  if (displayedLetter != desiredLetter)
+  if (displayedLetter != desiredLetter && calibrationSuccess)
   {
     rotateToLetter(desiredLetter);
+  }
+
+  if (newCalOffset)
+  {
+    goToMagnet(); // going to zero point
+    stepper.step(ROTATIONDIRECTION * calOffset);
+    currentStep = calOffset;
+    newCalOffset = false;
+    stopMotor();
   }
 
   delay(100);
 }
 
 // doing a calibration of the revolver using the hall sensor
-int calibrate()
+void goToMagnet()
 {
-  Serial.println("calibrate revolver");
+  calibrationSuccess = false;
   bool reachedMarker = false;
-  stepper.setSpeed(STEPPERSPEED);
   int i = 0;
   while (!reachedMarker)
   {
     int currentHallValue = digitalRead(HALLPIN);
 
     if (currentHallValue == 0 && i == 0)
-    { // already in zero position move out a bit and do the calibration {
-      // not reached yet
-      i = 50;
-      stepper.step(ROTATIONDIRECTION * 50); // move 50 steps to get out of scope of hall
+    {
+      // already in zero position move out a bit and do the calibration
+      i = 100;
+      stepper.step(ROTATIONDIRECTION * 100); // move 50 steps to get out of scope of hall
     }
     else if (currentHallValue == 1)
     {
@@ -140,119 +105,77 @@ int calibrate()
     }
     else
     {
-      // reached marker, go to calibrated offset position
-      reachedMarker = true;
-      stepper.step(ROTATIONDIRECTION * CALOFFSET);
-      displayedLetter = " ";
-      missedSteps = 0;
-      stopMotor();
+      Serial.println("found magnet");
 
-      Serial.println("success");
-      return i;
+      // reached marker
+      reachedMarker = true;
+      calibrationSuccess = true;
     }
 
     if (i > 3 * STEPS)
     {
       // seems that there is a problem with the marker or the sensor. turn of the motor to avoid overheating.
-      displayedLetter = " ";
-      desiredLetter = " ";
+      Serial.println("magnet not found");
       reachedMarker = true;
-
-      Serial.println("calibration revolver failed");
-      return -1;
     }
 
     i++;
   }
-
-  return i;
 }
 
 // rotate to desired letter
-void rotateToLetter(String toLetter)
+void rotateToLetter(char toLetter)
 {
-  lastRotation = millis();
   // get letter position
   int posLetter = -1;
   int posCurrentLetter = -1;
-  int amountLetters = sizeof(letters) / sizeof(String);
+  int amountLetters = sizeof(letters) / sizeof(char);
 
   for (int i = 0; i < amountLetters; i++)
   {
     // current char
-    String currentSearchLetter = letters[i];
-    if (toLetter == currentSearchLetter)
+    if (toLetter == letters[i])
       posLetter = i;
-    if (displayedLetter == currentSearchLetter)
-      posCurrentLetter = i;
   }
 
   Serial.print("go to letter:");
   Serial.println(toLetter);
 
-  // go to letter, but only if available (>-1)
+  // go to letter, but only if available (> -1)
   if (posLetter > -1)
   {
-    // check if letter exists
-    // check if letter is on higher index, then no full rotaion is needed
-    if (posLetter >= posCurrentLetter)
+    // calculate at which step of the motor (relative to magnet) that letter is
+    int letterAtStep = round((float)posLetter * ((float)STEPS / amountLetters) + calOffset);
+    if (letterAtStep > STEPS)
+      letterAtStep -= STEPS;
+
+    // calculate how many steps to go
+    int stepsToGo = letterAtStep - currentStep;
+
+    // if negative (ie a rollover), calibrate
+    if (stepsToGo < 0)
     {
-      Serial.println("direct");
-      // go directly to next letter, get steps from current letter to target letter
-      int diffPosition = posLetter - posCurrentLetter;
-      startMotor();
-      stepper.setSpeed(STEPPERSPEED);
-      // doing the rotation letterwise
-      for (int i = 0; i < diffPosition; i++)
-      {
-        float preciseStep = (float)STEPS / (float)AMOUNTFLAPS;
-        int roundedStep = (int)preciseStep;
-        missedSteps = missedSteps + ((float)preciseStep - (float)roundedStep);
-        if (missedSteps > 1)
-        {
-          roundedStep = roundedStep + 1;
-          missedSteps--;
-        }
-        stepper.step(ROTATIONDIRECTION * roundedStep);
-      }
-    }
-    else
-    {
-      // full rotation is needed, good time for a calibration
-      Serial.println("full rotation incl. calibration");
-      calibrate();
-      startMotor();
-      stepper.setSpeed(STEPPERSPEED);
-      for (int i = 0; i < posLetter; i++)
-      {
-        float preciseStep = (float)STEPS / (float)AMOUNTFLAPS;
-        int roundedStep = (int)preciseStep;
-        missedSteps = missedSteps + (float)preciseStep - (float)roundedStep;
-        if (missedSteps > 1)
-        {
-          roundedStep = roundedStep + 1;
-          missedSteps--;
-        }
-        stepper.step(ROTATIONDIRECTION * roundedStep);
-      }
+      Serial.println("passing magnet");
+      goToMagnet();
+      stepsToGo = letterAtStep;
     }
 
-    // store new position
+    // rotate
+    stepper.step(ROTATIONDIRECTION * stepsToGo);
+
     displayedLetter = toLetter;
+    currentStep = letterAtStep;
+
     // rotation is done, stop the motor
-    delay(100); // important to stop rotation before shutting of the motor to avoid rotation after switching off current
     stopMotor();
-  }
-  else
-  {
-    Serial.println("letter unknown, go to space");
-    desiredLetter = " ";
   }
 }
 
 // switching off the motor driver
 void stopMotor()
 {
+  delay(100); // important to stop rotation before shutting of the motor to avoid rotation after switching off current
+
   lastInd1 = digitalRead(STEPPERPIN1);
   lastInd2 = digitalRead(STEPPERPIN2);
   lastInd3 = digitalRead(STEPPERPIN3);
@@ -272,15 +195,32 @@ void startMotor()
   digitalWrite(STEPPERPIN4, lastInd4);
 }
 
-void receiveLetter(int amount)
+void receiveData(int amount)
 {
-  amountBytesI2C = amount;
-  int i = 0;
-  while (Wire.available())
+  if (amount == 0)
   {
-    byteBufferI2C[i] = Wire.read();
-    Serial.println(byteBufferI2C[i]);
-    i++;
+    return;
   }
-  readBytesFinished = true;
+
+  Wire.readBytes(byteBufferI2C, amount);
+  // Serial.println("received data");
+  // Serial.println(byteBufferI2C[0]);
+  // Serial.println(byteBufferI2C[1]);
+  // Serial.println(byteBufferI2C[2]);
+  // Serial.println(byteBufferI2C[3]);
+
+  if (byteBufferI2C[0] == 255) // calOffset
+  {
+    // parse high and low byte into calOffset
+    calOffset = byteBufferI2C[1] << 8 | byteBufferI2C[2];
+    Serial.println("calOffset received: " + String(calOffset));
+    newCalOffset = true;
+    return;
+  }
+  else
+  {
+    desiredLetter = (char)byteBufferI2C[0];
+    Serial.println("letter received: " + String(desiredLetter));
+    return;
+  }
 }
