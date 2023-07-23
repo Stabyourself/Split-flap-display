@@ -10,7 +10,7 @@
 #include <Stepper.h>
 
 // constants i2c
-#define i2cAddress 1 // i2c address
+#define i2cAddress 7 // i2c address
 
 // constants stepper
 #define STEPPERPIN1 8
@@ -78,6 +78,9 @@ void loop()
     newCalOffset = false;
     stopMotor();
   }
+
+  // set LED to hall sensor
+  digitalWrite(LED_BUILTIN, (digitalRead(HALLPIN) == 0) ? HIGH : LOW);
 
   delay(100);
 }
@@ -197,7 +200,7 @@ void startMotor()
 
 void receiveData(int amount)
 {
-  if (amount == 0)
+  if (amount == 0) // happens during i2c scanning
   {
     return;
   }
@@ -217,7 +220,7 @@ void receiveData(int amount)
     newCalOffset = true;
     return;
   }
-  else
+  else // everything else is just single byte letters
   {
     desiredLetter = (char)byteBufferI2C[0];
     Serial.println("letter received: " + String(desiredLetter));
