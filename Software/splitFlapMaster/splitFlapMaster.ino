@@ -14,12 +14,12 @@
 #define BAUDRATE 115200 // baudrate for serial communication
 
 // Settings for connected units
-const int potentialUnits[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}; // array of i2c addresses
-const int potentialCalOffsets[] = {555, 560, 610, 570};                                               // array of calibration offsets for units, higher values move "down"
-int units[sizeof(potentialUnits) / sizeof(int)];                                                      // array of found units
-int calOffsets[sizeof(potentialCalOffsets) / sizeof(int)];                                            // array of found calibration offsets
-int amountUnits;                                                                                      // amount of found units
-#define DISTRIBUTEUNITDELAY 0                                                                         // delay between units for letter transmission in ms.
+const int potentialUnits[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};                                   // array of i2c addresses
+const int potentialCalOffsets[] = {555, 540, 610, 570, 590, 500, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560}; // array of calibration offsets for units, higher values move "down"
+int units[sizeof(potentialUnits) / sizeof(int)];                                                                                        // array of found units
+int calOffsets[sizeof(potentialCalOffsets) / sizeof(int)];                                                                              // array of found calibration offsets
+int amountUnits;                                                                                                                        // amount of found units
+#define DISTRIBUTEUNITDELAY 0                                                                                                           // delay between units for letter transmission in ms.
 
 // WIFI
 #define WIFIENABLED false             // set to false if you don't want to use wifi
@@ -75,6 +75,8 @@ void setup()
 
   Serial.println("starting i2c on master");
   Wire.begin(); // start i2c
+
+  delay(1000); // wait a bit for units
 
   scanForUnits();
 
