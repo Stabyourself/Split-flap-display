@@ -14,16 +14,19 @@
 #define BAUDRATE 115200 // baudrate for serial communication
 
 // Settings for connected units
-const int potentialUnits[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};                                   // array of i2c addresses
-const int potentialCalOffsets[] = {555, 540, 610, 570, 590, 500, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560}; // array of calibration offsets for units, higher values move "down"
-int units[sizeof(potentialUnits) / sizeof(int)];                                                                                        // array of found units
-int calOffsets[sizeof(potentialCalOffsets) / sizeof(int)];                                                                              // array of found calibration offsets
-int amountUnits;                                                                                                                        // amount of found units
-#define DISTRIBUTEUNITDELAY 0                                                                                                           // delay between units for letter transmission in ms.
+const int potentialUnits[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}; // array of i2c addresses
+const int potentialCalOffsets[] = {1115, 1085, 1225, 1145, 1185,
+                                   1005, 1125, 1125, 1125, 1125,
+                                   1125, 1125, 1125, 1125, 1125,
+                                   1125, 1125, 1125, 1125, 1125}; // array of calibration offsets for units, higher values move "down"
+int units[sizeof(potentialUnits) / sizeof(int)];                  // array of found units
+int calOffsets[sizeof(potentialCalOffsets) / sizeof(int)];        // array of found calibration offsets
+int amountUnits;                                                  // amount of found units
+#define DISTRIBUTEUNITDELAY 0                                     // delay between units for letter transmission in ms.
 
 // WIFI
 #define WIFIENABLED false             // set to false if you don't want to use wifi
-SoftwareSerial Serial1(3, 2);         // UART to ESP8266
+SoftwareSerial SerialESP(3, 2);       // UART to ESP8266
 #define ESPBAUDRATE 9600              // baudrate for ESP8266
 int wifiStatus = WL_IDLE_STATUS;      // wifi status
 const char ssid[] = "TheHorse";       // your network SSID (name)
@@ -42,10 +45,10 @@ void setup()
 
   if (WIFIENABLED)
   {
-    Serial1.begin(ESPBAUDRATE);
+    SerialESP.begin(ESPBAUDRATE);
 
     // initialize ESP module
-    WiFi.init(&Serial1);
+    WiFi.init(&SerialESP);
     // check for the presence of the shield
     if (WiFi.status() == WL_NO_SHIELD)
     {
