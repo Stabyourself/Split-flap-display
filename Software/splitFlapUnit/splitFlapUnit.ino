@@ -28,7 +28,6 @@ int calOffset = 1115; // master sends these now
 #define ROTATIONDIRECTION 1 //-1 for reverse direction
 
 // globals
-bool newCalOffset = false;
 bool calibrationSuccess = false;
 bool goingToMagnet = false;
 int magnetAt = 0;
@@ -172,7 +171,6 @@ void receiveData(int amount)
     // parse high and low byte into calOffset
     calOffset = byteBufferI2C[1] << 8 | byteBufferI2C[2];
     Serial.println("calOffset received: " + String(calOffset));
-    newCalOffset = true;
     goToMagnet();
     return;
   }
