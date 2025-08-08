@@ -11,15 +11,15 @@
 #include <Unistep2.h>
 
 // constants i2c
-#define i2cAddress 1 // i2c address
+#define i2cAddress 20 // i2c address
 
 // constants stepper
 #define STEPPERPIN1 8
 #define STEPPERPIN2 9
 #define STEPPERPIN3 10
 #define STEPPERPIN4 11
-#define STEPS 4096    // 28BYJ-48, number of steps;
-int calOffset = 1115; // master sends these now
+#define STEPS 4096 // 28BYJ-48, number of steps;
+int calOffset = 0; // master sends these now
 #define HALLPIN 5
 #define STEPPERSPEED 900 // in rpm. 15 is about the maximum speed for the stepper to still be accurate
 
@@ -50,8 +50,6 @@ void setup()
 
   // setup motor
   pinMode(HALLPIN, INPUT);
-
-  goToMagnet();
 }
 
 void loop()
